@@ -40,14 +40,22 @@ class LocaleURLMiddleware(object):
     def process_request(self, request):
         locale, path = self.split_locale_from_request(request)
         locale_path = utils.locale_path(path, locale)
+        print locale_path
         if locale_path != request.path_info:
             if request.META.get("QUERY_STRING", ""):
                 locale_path = "%s?%s" % (locale_path, 
                         request.META['QUERY_STRING'])
+            
             return HttpResponseRedirect(locale_path)
         request.path_info = path
-        if not locale:
-            locale = settings.LANGUAGE_CODE
+        #if not locale:
+            #locale = settings.LANGUAGE_CODE
+        """ Add selected locale to session """                   
+        if hasattr(request, 'session'):
+            request.session['django_language'] = locale
+        else:
+            response.set_cookie(settings.LANGUAGE_COOKIE_NAME, locale)  
+            
         translation.activate(locale)
         request.LANGUAGE_CODE = translation.get_language()
 
@@ -56,6 +64,7 @@ class LocaleURLMiddleware(object):
             response['Content-Language'] = translation.get_language()
         translation.deactivate()
         return response
+    
 
     def split_locale_from_request(self, request):
         if localeurl.settings.URL_TYPE == 'domain':
@@ -65,4 +74,7 @@ class LocaleURLMiddleware(object):
             path_info = request.path_info
         else:
             locale, path_info = utils.strip_path(request.path_info)
+            """ If no locale returned from path get next best from request """
+            if not locale:
+                locale = translation.get_language_from_request(request)
         return locale, path_info
